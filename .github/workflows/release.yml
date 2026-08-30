@@ -1,0 +1,47 @@
+name: Build and Release PHP SDK
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+
+      - name: Run Tests
+        run: php tests/run.php
+
+      - name: Create Zip Archive
+        run: zip -r securhost-php-sdk.zip src composer.json LICENSE README.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: securhost-php-sdk.zip
+          generate_release_notes: true
+
+      - name: Notify Packagist
+        if: env.PACKAGIST_USER != '' && env.PACKAGIST_TOKEN != ''
+        env:
+          PACKAGIST_USER: ${{ secrets.PACKAGIST_USER }}
+          PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
+        run: |
+          curl -s -XPOST -H'content-type:application/json' \
+            "https://packagist.org/api/update-package?username=${PACKAGIST_USER}&apiToken=${PACKAGIST_TOKEN}" \
+            -d'{"repository":{"url":"https://github.com/Zhost-Consulting-Private-Limited/securhost-php"}}'
